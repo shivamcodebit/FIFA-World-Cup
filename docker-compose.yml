@@ -1,0 +1,63 @@
+version: '3.9'
+
+# ──────────────────────────────────────────────────────────────────────
+# StadiumPilot AI – Docker Compose
+# Full-stack development and production deployment
+# ──────────────────────────────────────────────────────────────────────
+
+services:
+  # ──────────────────────────────────────────────
+  # Backend – FastAPI + Python
+  # ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stadiumPilot-backend
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-changeme-in-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=sqlite+aiosqlite:///./data/stadiumPilot.db
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:80
+    volumes:
+      - backend_data:/app/data
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - stadiumPilot-net
+
+  # ──────────────────────────────────────────────
+  # Frontend – React + Vite (served via nginx)
+  # ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: stadiumPilot-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - stadiumPilot-net
+
+volumes:
+  backend_data:
+    driver: local
+
+networks:
+  stadiumPilot-net:
+    driver: bridge

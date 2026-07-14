@@ -1,0 +1,178 @@
+name: CI/CD Pipeline – StadiumPilot AI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Backend Tests
+  # ──────────────────────────────────────────────
+  backend-test:
+    name: Backend Tests (Python ${{ env.PYTHON_VERSION }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests with coverage
+        working-directory: backend
+        env:
+          ENVIRONMENT: test
+          GEMINI_API_KEY: ""  # No real key in CI
+        run: |
+          pytest tests/ -v --tb=short --cov=app --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: backend/coverage.xml
+          fail_ci_if_error: false
+
+  # ──────────────────────────────────────────────
+  # Frontend Tests
+  # ──────────────────────────────────────────────
+  frontend-test:
+    name: Frontend Tests (Node ${{ env.NODE_VERSION }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────
+  # Frontend Build (validates production build)
+  # ──────────────────────────────────────────────
+  frontend-build:
+    name: Frontend Build Validation
+    runs-on: ubuntu-latest
+    needs: frontend-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Build production bundle
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://localhost:8000
+        run: npm run build
+
+      - name: Check bundle size
+        working-directory: frontend
+        run: |
+          echo "Build output:"
+          du -sh dist/
+          ls -la dist/assets/
+
+  # ──────────────────────────────────────────────
+  # Docker Build Validation
+  # ──────────────────────────────────────────────
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-build]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend Docker image
+        run: |
+          docker build -t stadiumPilot-backend:test ./backend
+
+      - name: Build frontend Docker image
+        run: |
+          docker build \
+            --build-arg VITE_API_BASE_URL=http://localhost:8000 \
+            -t stadiumPilot-frontend:test \
+            ./frontend
+
+      - name: Run backend container health check
+        run: |
+          docker run -d --name backend-test \
+            -p 8000:8000 \
+            -e ENVIRONMENT=production \
+            -e SECRET_KEY=$(openssl rand -hex 32) \
+            stadiumPilot-backend:test
+          sleep 15
+          curl -f http://localhost:8000/health || (docker logs backend-test && exit 1)
+          docker stop backend-test
+
+  # ──────────────────────────────────────────────
+  # Security Scan
+  # ──────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install safety and bandit
+        run: pip install safety bandit
+
+      - name: Run bandit (Python security linter)
+        working-directory: backend
+        run: bandit -r app/ -ll -x app/tests/ || true
+
+      - name: Check Python dependency vulnerabilities
+        working-directory: backend
+        run: safety check -r requirements.txt || true

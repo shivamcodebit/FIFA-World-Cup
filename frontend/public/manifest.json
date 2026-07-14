@@ -1,0 +1,37 @@
+{
+  "name": "StadiumPilot AI – FIFA World Cup 2026",
+  "short_name": "StadiumPilot",
+  "description": "AI-powered stadium assistant for FIFA World Cup 2026. Navigation, emergency response, and crowd intelligence.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#003DA5",
+  "orientation": "any",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "productivity", "utilities"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Fan Assistant",
+      "short_name": "Fan",
+      "description": "AI-powered fan assistance",
+      "url": "/fan",
+      "icons": [{"src": "/favicon.svg", "sizes": "any"}]
+    },
+    {
+      "name": "Emergency SOS",
+      "short_name": "SOS",
+      "description": "Emergency response and incident reporting",
+      "url": "/emergency",
+      "icons": [{"src": "/favicon.svg", "sizes": "any"}]
+    }
+  ]
+}

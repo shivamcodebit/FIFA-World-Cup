@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────
+   Base Styles
+   ────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --font-size-base: 16px;
+    --animation-duration: 0.2s;
+  }
+
+  /* Large text mode */
+  .large-text {
+    --font-size-base: 20px;
+    font-size: var(--font-size-base);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-gray-950 text-gray-100 font-sans antialiased;
+    font-size: var(--font-size-base, 16px);
+    line-height: 1.6;
+  }
+
+  /* Focus visible for keyboard navigation */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-400;
+  }
+
+  /* Remove focus outline for mouse users, keep for keyboard */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* ──────────────────────────────────────────────
+   Reduced Motion – Accessibility
+   ────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --animation-duration: 0.01ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Disable framer-motion animations at CSS level */
+  [style*="transform"],
+  [style*="opacity"] {
+    transition: none !important;
+  }
+
+  /* Disable bouncing animations */
+  .animate-bounce,
+  .animate-pulse,
+  .animate-spin {
+    animation: none !important;
+  }
+}
+
+/* ──────────────────────────────────────────────
+   High Contrast Mode
+   ────────────────────────────────────────────── */
+.high-contrast {
+  --tw-bg-opacity: 1;
+}
+
+.high-contrast body,
+.high-contrast main,
+.high-contrast header,
+.high-contrast footer,
+.high-contrast nav {
+  background-color: #000 !important;
+  color: #fff !important;
+}
+
+.high-contrast .bg-gray-900,
+.high-contrast .bg-gray-800,
+.high-contrast .bg-gray-950,
+.high-contrast .bg-gray-900\/50,
+.high-contrast [class*="bg-gray"],
+.high-contrast [class*="bg-blue"][class*="/"],
+.high-contrast [class*="bg-purple"][class*="/"],
+.high-contrast [class*="bg-green"][class*="/"],
+.high-contrast [class*="bg-red"][class*="/"],
+.high-contrast [class*="bg-yellow"][class*="/"] {
+  background-color: #000 !important;
+  border: 1px solid #fff;
+}
+
+.high-contrast a,
+.high-contrast button {
+  color: #ffff00 !important;
+}
+
+.high-contrast a:hover,
+.high-contrast button:hover {
+  text-decoration: underline;
+  color: #ffffff !important;
+}
+
+.high-contrast input,
+.high-contrast textarea,
+.high-contrast select {
+  background-color: #000 !important;
+  color: #fff !important;
+  border: 2px solid #fff !important;
+}
+
+.high-contrast [class*="text-gray"],
+.high-contrast [class*="text-blue"],
+.high-contrast [class*="text-green"],
+.high-contrast [class*="text-purple"],
+.high-contrast [class*="text-red"],
+.high-contrast [class*="text-yellow"] {
+  color: #fff !important;
+}
+
+/* ──────────────────────────────────────────────
+   Chat Bubble Styles
+   ────────────────────────────────────────────── */
+.chat-bubble-user {
+  @apply bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-3 max-w-xs lg:max-w-md;
+}
+
+.chat-bubble-assistant {
+  @apply bg-gray-800 text-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 max-w-xs lg:max-w-md border border-gray-700;
+}
+
+/* ──────────────────────────────────────────────
+   Scrollbar
+   ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
+/* ──────────────────────────────────────────────
+   Leaflet Map Override
+   ────────────────────────────────────────────── */
+.leaflet-container {
+  @apply rounded-xl;
+  background: #1e293b;
+}
+
+/* ──────────────────────────────────────────────
+   Loading Skeleton
+   ────────────────────────────────────────────── */
+.skeleton {
+  @apply animate-pulse bg-gray-700 rounded;
+}
+
+/* ──────────────────────────────────────────────
+   Alert Density Colors
+   ────────────────────────────────────────────── */
+.density-green { @apply text-green-400 bg-green-400/10; }
+.density-yellow { @apply text-yellow-400 bg-yellow-400/10; }
+.density-red { @apply text-red-400 bg-red-400/10 animate-pulse; }
+
+/* ──────────────────────────────────────────────
+   RTL Support (for Arabic)
+   ────────────────────────────────────────────── */
+[dir="rtl"] .chat-bubble-user {
+  @apply rounded-bl-sm rounded-br-2xl;
+}
+
+[dir="rtl"] .chat-bubble-assistant {
+  @apply rounded-br-sm rounded-bl-2xl;
+}
+
+/* ──────────────────────────────────────────────
+   Print Styles – for incident report printing
+   ────────────────────────────────────────────── */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  main {
+    width: 100% !important;
+  }
+}
+
+/* ──────────────────────────────────────────────
+   Gradient Animations
+   ────────────────────────────────────────────── */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+/* ──────────────────────────────────────────────
+   Custom animated pulse (slower)
+   ────────────────────────────────────────────── */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
