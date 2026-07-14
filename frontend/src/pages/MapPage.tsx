@@ -13,7 +13,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 
-L.Marker.prototype.options.icon = L.icon({
+const defaultIcon = L.icon({
   iconUrl: markerIcon,
   iconRetinaUrl: markerIconRetina,
   shadowUrl: markerShadow,
@@ -21,6 +21,8 @@ L.Marker.prototype.options.icon = L.icon({
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
 })
+
+L.Marker.prototype.options.icon = defaultIcon
 
 const FACILITY_ICONS: Record<string, string> = {
   restroom: '🚻',

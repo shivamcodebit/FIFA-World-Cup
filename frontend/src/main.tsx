@@ -12,7 +12,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Toaster
         position="top-right"
         gutter={8}
-        containerAriaProps={{ 'aria-label': 'Notifications' } as React.AriaAttributes}
         toastOptions={{
           duration: 4000,
           style: {
