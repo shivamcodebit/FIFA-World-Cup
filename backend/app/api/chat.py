@@ -3,6 +3,7 @@ Chat API endpoints.
 Handles AI-powered conversations for all user roles.
 """
 from fastapi import APIRouter, Depends
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -11,6 +12,7 @@ from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.ai_service import chat_with_ai
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/", response_model=ChatResponse)
@@ -21,6 +23,8 @@ async def send_message(payload: ChatRequest, db: AsyncSession = Depends(get_db))
     The AI uses the user's role, language, location, and conversation history
     to generate contextually relevant responses.
     """
+    logger.info("Chat request: session=%s role=%s message_len=%d", payload.session_id, payload.user_role, len(payload.message))
+
     # Get AI response
     reply, suggested_actions = await chat_with_ai(
         message=payload.message,

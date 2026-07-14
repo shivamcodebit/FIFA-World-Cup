@@ -44,9 +44,22 @@ _client: genai.Client | None = None
 
 
 def _get_client() -> genai.Client | None:
+    """Return a singleton Gemini client or None when API key is not configured.
+
+    Any exceptions raised by the underlying SDK during initialization are
+    logged and swallowed so the application can continue in demo mode.
+    """
     global _client
-    if _client is None and settings.gemini_api_key:
-        _client = genai.Client(api_key=settings.gemini_api_key)
+    if _client is None:
+        if not settings.gemini_api_key:
+            logger.debug("Gemini API key not configured; running in demo mode.")
+            return None
+        try:
+            _client = genai.Client(api_key=settings.gemini_api_key)
+            logger.info("Initialized Gemini client for model=%s", settings.gemini_model)
+        except Exception as exc:
+            logger.exception("Failed to initialize Gemini client: %s", exc)
+            _client = None
     return _client
 
 
@@ -118,7 +131,11 @@ async def _call_gemini(fn_args: dict) -> str:
             timeout=GEMINI_TIMEOUT,
         )
     except asyncio.TimeoutError:
+        logger.warning("Gemini call timed out after %ss", GEMINI_TIMEOUT)
         raise TimeoutError(f"Gemini API timed out after {GEMINI_TIMEOUT}s")
+    except Exception as exc:
+        logger.exception("Unhandled exception during Gemini call: %s", exc)
+        raise
 
 
 def _build_contents(
@@ -176,19 +193,15 @@ async def chat_with_ai(
         return reply_text, actions
 
     except Exception as exc:
-        import traceback
-
-        print("\n" + "=" * 80)
-        print("GEMINI ERROR")
-        print("Type:", type(exc).__name__)
-        print("Message:", str(exc))
-        traceback.print_exc()
-        print("=" * 80 + "\n")
-
-        return (
-            f"DEBUG: {type(exc).__name__}: {str(exc)}",
-            [],
-        )
+        # Log full exception for diagnostics, but return a user-friendly
+        # placeholder so upstream code can continue functioning.
+        logger.exception("Gemini chat_with_ai failed: %s", exc)
+        # Provide a safe, non-sensitive debug string in non-production only.
+        if settings.environment != "production":
+            debug_msg = f"DEBUG: {type(exc).__name__}: {str(exc)}"
+        else:
+            debug_msg = "The AI service is currently unavailable."
+        return debug_msg, []
 
 
 async def _extract_suggested_actions(
