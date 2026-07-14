@@ -176,19 +176,19 @@ async def chat_with_ai(
         return reply_text, actions
 
     except Exception as exc:
-    import traceback
+        import traceback
 
-    print("\n" + "=" * 80)
-    print("GEMINI ERROR")
-    print("Type:", type(exc).__name__)
-    print("Message:", str(exc))
-    traceback.print_exc()
-    print("=" * 80 + "\n")
+        print("\n" + "=" * 80)
+        print("GEMINI ERROR")
+        print("Type:", type(exc).__name__)
+        print("Message:", str(exc))
+        traceback.print_exc()
+        print("=" * 80 + "\n")
 
-    return (
-        f"DEBUG: {type(exc).__name__}: {str(exc)}",
-        [],
-    )
+        return (
+            f"DEBUG: {type(exc).__name__}: {str(exc)}",
+            [],
+        )
 
 
 async def _extract_suggested_actions(
