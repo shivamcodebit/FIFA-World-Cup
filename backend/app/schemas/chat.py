@@ -42,4 +42,4 @@ class ChatResponse(BaseModel):
     reply: str
     language: str
     suggested_actions: list[str] = Field(default_factory=list)
-    created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))

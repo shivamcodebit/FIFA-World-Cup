@@ -2,20 +2,26 @@
 Incident API endpoints.
 Handles emergency reporting with AI-generated summaries.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.models.incident import Incident
 from app.schemas.incident import IncidentCreate, IncidentRead, IncidentUpdate
 from app.services.ai_service import generate_incident_summary
+from app.api.auth import verify_api_key
 
-router = APIRouter(prefix="/incidents", tags=["Incidents"])
+router = APIRouter(prefix="/incidents", tags=["Incidents"], dependencies=[Depends(verify_api_key)])
+limiter = Limiter(key_func=get_remote_address)
+
 
 
 @router.post("/", response_model=IncidentRead, status_code=status.HTTP_201_CREATED)
-async def create_incident(payload: IncidentCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def create_incident(request: Request, payload: IncidentCreate, db: AsyncSession = Depends(get_db)):
     """
     Report a new incident.
     Automatically generates an AI-powered incident summary.
@@ -42,7 +48,9 @@ async def create_incident(payload: IncidentCreate, db: AsyncSession = Depends(ge
 
 
 @router.get("/", response_model=list[IncidentRead])
+@limiter.limit("30/minute")
 async def list_incidents(
+    request: Request,
     status: str | None = None,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
@@ -56,7 +64,8 @@ async def list_incidents(
 
 
 @router.get("/{incident_id}", response_model=IncidentRead)
-async def get_incident(incident_id: int, db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def get_incident(request: Request, incident_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single incident by ID."""
     result = await db.execute(select(Incident).where(Incident.id == incident_id))
     incident = result.scalar_one_or_none()
@@ -66,8 +75,9 @@ async def get_incident(incident_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/{incident_id}", response_model=IncidentRead)
+@limiter.limit("10/minute")
 async def update_incident(
-    incident_id: int, payload: IncidentUpdate, db: AsyncSession = Depends(get_db)
+    request: Request, incident_id: int, payload: IncidentUpdate, db: AsyncSession = Depends(get_db)
 ):
     """Update incident status or description."""
     result = await db.execute(select(Incident).where(Incident.id == incident_id))
@@ -83,3 +93,4 @@ async def update_incident(
     await db.flush()
     await db.refresh(incident)
     return incident
+

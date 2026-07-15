@@ -2,21 +2,27 @@
 Chat API endpoints.
 Handles AI-powered conversations for all user roles.
 """
-from fastapi import APIRouter, Depends
+import re
+from fastapi import APIRouter, Depends, Request, HTTPException
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
+from app.api.auth import verify_api_key
 from app.database import get_db
 from app.models.chat import ChatMessage
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.ai_service import chat_with_ai
 
-router = APIRouter(prefix="/chat", tags=["Chat"])
+router = APIRouter(prefix="/chat", tags=["Chat"], dependencies=[Depends(verify_api_key)])
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/", response_model=ChatResponse)
-async def send_message(payload: ChatRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def send_message(request: Request, payload: ChatRequest, db: AsyncSession = Depends(get_db)):
     """
     Send a message to the AI assistant.
 
@@ -63,15 +69,27 @@ async def send_message(payload: ChatRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.get("/history/{session_id}")
-async def get_history(session_id: str, db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def get_history(
+    request: Request,
+    session_id: str,
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db)
+):
     """Retrieve conversation history for a session."""
-    from sqlalchemy import select
+    if not re.match(r"^[a-zA-Z0-9_\-]{1,64}$", session_id):
+        raise HTTPException(status_code=422, detail="Invalid session_id format")
+    from sqlalchemy import select, desc
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.created_at)
+        .order_by(desc(ChatMessage.created_at))
+        .limit(limit)
+        .offset(offset)
     )
     messages = result.scalars().all()
+    messages.reverse()
     return [
         {"role": m.role, "content": m.content, "created_at": m.created_at}
         for m in messages

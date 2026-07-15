@@ -189,10 +189,13 @@ export default function ChatInterface({ placeholder, quickPrompts = [] }: Props)
           {/* Voice input placeholder */}
           <button
             className="flex-shrink-0 w-10 h-10 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl flex items-center justify-center transition-colors"
-            aria-label="Voice input (coming soon)"
+            aria-label="Voice input"
+            aria-disabled="true"
+            aria-describedby="mic-desc"
             title="Voice input (coming soon)"
-            disabled
+            onClick={(e) => e.preventDefault()}
           >
+            <span id="mic-desc" className="sr-only">This feature is coming soon.</span>
             <Mic className="w-4 h-4 text-gray-500" aria-hidden="true" />
           </button>
 

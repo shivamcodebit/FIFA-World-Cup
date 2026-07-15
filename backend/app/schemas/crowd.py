@@ -1,5 +1,5 @@
 """Pydantic schemas for crowd data endpoints."""
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import datetime
 
 
@@ -22,4 +22,4 @@ class CrowdSummaryResponse(BaseModel):
     hotspots: list[str]
     recommendations: list[str]
     overall_density: float
-    generated_at: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)
+    generated_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))

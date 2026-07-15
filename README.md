@@ -63,11 +63,21 @@ The system utilizes Google Gemini 2.0 Flash to process inputs based on specific 
 ## 💻 Installation & Setup
 
 ### Prerequisites
-* Python 3.11 or 3.12[cite: 1]
-* Node.js 18+[cite: 1]
+* Python 3.11 or 3.12
+* Node.js 18+
+* Docker & Docker Compose (for production)
 
 ### Installation
 1. **Clone the repository**:
    ```bash
-   git clone [https://github.com/shivamcodebit/FIFA-World-Cup](https://github.com/shivamcodebit/FIFA-World-Cup)
+   git clone https://github.com/shivamcodebit/FIFA-World-Cup
    cd FIFA-World-Cup
+   ```
+
+### Production Deployment
+To deploy in a production environment using Docker:
+1. Create a `.env` file in the `backend` directory based on `.env.example`.
+2. **Critical Security Step**: Set `SECRET_KEY` to a strong random string.
+3. Add your `GEMINI_API_KEY` for full AI functionality.
+4. Set `ENVIRONMENT=production`.
+5. Run `docker-compose up -d --build`. Nginx will proxy `/api/` traffic automatically.

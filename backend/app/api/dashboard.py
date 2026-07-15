@@ -2,10 +2,15 @@
 Dashboard API endpoints.
 Provides AI-powered operational insights for staff and organizers.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
+import logging
+
+from app.config import get_settings
 from app.database import get_db
 from app.models.crowd import CrowdSnapshot
 from app.schemas.dashboard import StaffDashboardData, OrganizerDashboardData, ZoneStatus
@@ -14,8 +19,12 @@ from app.services.ai_service import (
     generate_organizer_dashboard_insights,
 )
 from app.data.mock_data import MOCK_CROWD_DATA
+from app.api.auth import verify_api_key
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
+
 
 
 async def _get_crowd_data(db: AsyncSession) -> list[dict]:
@@ -24,6 +33,9 @@ async def _get_crowd_data(db: AsyncSession) -> list[dict]:
     )
     snapshots = result.scalars().all()
     if not snapshots:
+        settings = get_settings()
+        if settings.environment == "production":
+            logger.warning("No crowd data found in DB. Falling back to mock data in production!")
         return MOCK_CROWD_DATA
     return [
         {
@@ -46,8 +58,9 @@ def _zone_alert_level(density: float) -> str:
     return "green"
 
 
-@router.get("/staff", response_model=StaffDashboardData)
-async def staff_dashboard(db: AsyncSession = Depends(get_db)):
+@router.get("/staff", response_model=StaffDashboardData, dependencies=[Depends(verify_api_key)])
+@limiter.limit("20/minute")
+async def staff_dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Return AI-powered operational insights for venue staff.
     Includes crowd summary, cleaning priorities, water refill alerts, security alerts.
@@ -76,8 +89,9 @@ async def staff_dashboard(db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.get("/organizer", response_model=OrganizerDashboardData)
-async def organizer_dashboard(db: AsyncSession = Depends(get_db)):
+@router.get("/organizer", response_model=OrganizerDashboardData, dependencies=[Depends(verify_api_key)])
+@limiter.limit("20/minute")
+async def organizer_dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Return strategic AI-powered insights for event organizers.
     Includes crowd distribution analysis, gate optimization, staff allocation.
@@ -105,3 +119,4 @@ async def organizer_dashboard(db: AsyncSession = Depends(get_db)):
         stadium_health_summary=insights.get("stadium_health_summary", ""),
         decision_support=insights.get("decision_support", ""),
     )
+

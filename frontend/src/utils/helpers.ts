@@ -33,7 +33,7 @@ export function formatTime(iso: string): string {
 
 /** Format large numbers with commas */
 export function formatNumber(n: number): string {
-  return new Intl.NumberFormat().format(n)
+  return new Intl.NumberFormat('en-US').format(n)
 }
 
 /** Truncate text to a max length with ellipsis */

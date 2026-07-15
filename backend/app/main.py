@@ -11,6 +11,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
 from app.database import create_tables
@@ -39,7 +42,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(self)"
+        )
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https://*.tile.openstreetmap.org; "
+            "connect-src 'self' http://localhost:8000"
+        )
         if settings.environment == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
@@ -51,8 +64,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 def _validate_environment() -> None:
     """Warn or raise on insecure configuration."""
     if settings.environment == "production":
-        if settings.secret_key == "changeme-in-production":
-            raise RuntimeError(
+        _insecure_keys = {"changeme-in-production", "your_secret_key_here", "secret", "changeme"}
+        if settings.secret_key in _insecure_keys or len(settings.secret_key) < 16:
+            raise ValueError(
                 "SECURITY ERROR: SECRET_KEY must be set to a strong random value in production. "
                 "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
             )
@@ -63,9 +77,10 @@ def _validate_environment() -> None:
                 stacklevel=2,
             )
     else:
-        if settings.secret_key == "changeme-in-production":
+        _insecure_keys = {"changeme-in-production", "your_secret_key_here", "secret", "changeme"}
+        if settings.secret_key in _insecure_keys:
             logger.warning(
-                "⚠️  SECRET_KEY is using the default value. "
+                "⚠️  SECRET_KEY is using an insecure default value. "
                 "Set a strong SECRET_KEY before deploying to production."
             )
         if not settings.gemini_api_key:
@@ -111,6 +126,13 @@ app = FastAPI(
         "url": "https://opensource.org/licenses/MIT",
     },
 )
+
+# ──────────────────────────────────────────────
+# Rate Limiting
+# ──────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ──────────────────────────────────────────────
 # Middleware (order matters – outermost first)
@@ -176,10 +198,4 @@ async def root():
         "version": settings.app_version,
         "ai_powered": bool(settings.gemini_api_key),
     }
-
-
-from app.config import get_settings
-
-settings = get_settings()
-print("API KEY:", settings.gemini_api_key[:10])
-print("MODEL:", settings.gemini_model)
+

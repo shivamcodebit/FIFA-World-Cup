@@ -14,9 +14,13 @@ export const apiClient = axios.create({
   },
 })
 
-// Request interceptor – add correlation ID for tracing
+// Request interceptor – add correlation ID for tracing and API key for privileged endpoints
 apiClient.interceptors.request.use((config) => {
   config.headers['X-Request-ID'] = crypto.randomUUID()
+  const apiKey = import.meta.env.VITE_STAFF_API_KEY
+  if (apiKey) {
+    config.headers['X-API-Key'] = apiKey
+  }
   return config
 })
 

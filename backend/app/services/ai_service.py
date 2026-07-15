@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from google import genai
@@ -32,9 +31,6 @@ from app.prompts.templates import (
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
-
-# Thread pool – Gemini SDK calls are synchronous; run them off the event loop
-_executor = ThreadPoolExecutor(max_workers=4)
 
 # Per-request timeout for Gemini API calls
 GEMINI_TIMEOUT = 15.0
@@ -113,23 +109,19 @@ _LANGUAGE_NAMES: dict[str, str] = {
 
 async def _call_gemini(fn_args: dict) -> str:
     """
-    Run a synchronous Gemini generate_content call in a thread pool
+    Run an asynchronous Gemini generate_content call
     with a hard timeout. Returns the response text.
     """
     client = _get_client()
     if client is None:
         raise RuntimeError("No Gemini client – API key not configured")
 
-    def _sync_call() -> str:
-        resp = client.models.generate_content(**fn_args)
-        return (resp.text or "").strip()
-
-    loop = asyncio.get_running_loop()
     try:
-        return await asyncio.wait_for(
-            loop.run_in_executor(_executor, _sync_call),
+        resp = await asyncio.wait_for(
+            client.aio.models.generate_content(**fn_args),
             timeout=GEMINI_TIMEOUT,
         )
+        return (resp.text or "").strip()
     except asyncio.TimeoutError:
         logger.warning("Gemini call timed out after %ss", GEMINI_TIMEOUT)
         raise TimeoutError(f"Gemini API timed out after {GEMINI_TIMEOUT}s")
@@ -149,6 +141,12 @@ def _build_contents(
     contents.append(types.Content(role="user", parts=[types.Part(text=message)]))
     return contents
 
+
+from pydantic import BaseModel, Field
+
+class ChatAIResult(BaseModel):
+    reply: str = Field(description="The assistant response to the user, formatted with markdown as appropriate.")
+    suggested_actions: list[str] = Field(description="A list of 2-3 short follow-up action suggestions or questions the user might want to do next.")
 
 async def chat_with_ai(
     message: str,
@@ -176,7 +174,11 @@ async def chat_with_ai(
             context_block += f"\nAdditional context: {json.dumps(context, ensure_ascii=False)}"
         context_block += f"\nRespond in: {lang_name}"
 
-        system_instruction = base_prompt + context_block
+        system_instruction = (
+            base_prompt + context_block +
+            "\nYou MUST format your response as a JSON object matching the requested schema.\n"
+            "Both the reply and the suggested_actions list MUST be written/translated to the requested response language."
+        )
         contents = _build_contents(history or [], message)
 
         reply_text = await _call_gemini({
@@ -186,11 +188,21 @@ async def chat_with_ai(
                 system_instruction=system_instruction,
                 temperature=settings.gemini_temperature,
                 max_output_tokens=settings.gemini_max_tokens,
+                response_mime_type="application/json",
+                response_schema=ChatAIResult,
             ),
         })
 
-        actions = await _extract_suggested_actions(reply_text, user_role, lang_name)
-        return reply_text, actions
+        try:
+            parsed = json.loads(_extract_json(reply_text))
+            reply = parsed.get("reply", "").strip()
+            actions = parsed.get("suggested_actions", [])
+            # Sanitize actions
+            actions = [a.strip() for a in actions if isinstance(a, str) and len(a.strip()) > 0][:3]
+            return reply, actions
+        except Exception as parse_err:
+            logger.error("Failed to parse structured JSON response: %s", parse_err)
+            return reply_text, []
 
     except Exception as exc:
         # Log full exception for diagnostics, but return a user-friendly
@@ -203,27 +215,6 @@ async def chat_with_ai(
             debug_msg = "The AI service is currently unavailable."
         return debug_msg, []
 
-
-async def _extract_suggested_actions(
-    reply: str, user_role: str, lang_name: str
-) -> list[str]:
-    """Generate 2-3 concise follow-up action suggestions."""
-    try:
-        prompt = (
-            f"Based on this assistant reply to a stadium {user_role}:\n\n{reply}\n\n"
-            f"Suggest 2-3 short follow-up actions or questions the user might want to do next. "
-            f"Return ONLY a JSON array of strings, nothing else. "
-            f"Each string must be under 60 characters. Respond in {lang_name}."
-        )
-        text = await _call_gemini({
-            "model": settings.gemini_model,
-            "contents": prompt,
-            "config": types.GenerateContentConfig(temperature=0.3, max_output_tokens=200),
-        })
-        text = _extract_json(text)
-        return json.loads(text)
-    except Exception:
-        return []
 
 
 async def generate_incident_summary(
@@ -315,7 +306,7 @@ async def generate_organizer_dashboard_insights(crowd_data: list[dict]) -> dict:
         "staff_allocation": [],
         "transport_recommendations": [],
         "stadium_health_summary": "Configure GEMINI_API_KEY.",
-        "decision_support": "",
+        "decision_support": "No immediate decisions required (AI unavailable).",
     }
     if not _get_client():
         return fallback

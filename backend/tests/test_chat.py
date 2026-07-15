@@ -195,3 +195,40 @@ async def test_chat_multilingual_spanish(client):
     assert response.status_code == 200
     data = response.json()
     assert data["language"] == "es"
+
+
+@pytest.mark.asyncio
+async def test_chat_auth_enforcement_in_production(client, monkeypatch):
+    """Chat should require valid X-API-Key in production."""
+    from app.config import get_settings
+    settings = get_settings()
+    
+    # Mock production environment
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "secret_key", "secure-prod-key")
+
+    payload = {
+        "session_id": "test-auth",
+        "message": "Hello",
+        "user_role": "fan",
+    }
+    
+    # 1. No auth -> 401
+    response = await client.post("/api/v1/chat/", json=payload)
+    assert response.status_code == 401
+    
+    # 2. Invalid auth -> 401
+    response = await client.post(
+        "/api/v1/chat/", 
+        json=payload, 
+        headers={"X-API-Key": "wrong-key"}
+    )
+    assert response.status_code == 401
+    
+    # 3. Valid auth -> 200
+    response = await client.post(
+        "/api/v1/chat/", 
+        json=payload, 
+        headers={"X-API-Key": "secure-prod-key"}
+    )
+    assert response.status_code == 200

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
 import Layout from '@/components/layout/Layout'
@@ -12,10 +12,16 @@ const EmergencyPage = lazy(() => import('@/pages/EmergencyPage'))
 const MapPage = lazy(() => import('@/pages/MapPage'))
 
 function App() {
-  const { highContrast, largeText } = useAppStore()
+  const { highContrast, largeText, language } = useAppStore()
+
+  useEffect(() => {
+    document.documentElement.lang = language
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr'
+  }, [language])
 
   return (
     <div className={`${highContrast ? 'high-contrast' : ''} ${largeText ? 'large-text' : ''}`}>
+
       <Suspense fallback={<div className="p-6 text-center text-white">Loading...</div>}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
